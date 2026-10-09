@@ -1,0 +1,6 @@
+supplier_id,supplier_name,country,commodity,contact,supplier_status
+SUP-001,AgroExport do Pará Ltda,Brazil,soy,compliance@sup001.example.com,active
+SUP-002,Verde Xingu Trading,Brazil,soy,compliance@sup002.example.com,active
+SUP-003,Amazônia Agri Coop,Brazil,cocoa,compliance@sup003.example.com,active
+SUP-004,Rio Fresco Holdings,Brazil,soy,compliance@sup004.example.com,active
+SUP-005,São Félix Cerrado Farms,Brazil,cattle,compliance@sup005.example.com,active
