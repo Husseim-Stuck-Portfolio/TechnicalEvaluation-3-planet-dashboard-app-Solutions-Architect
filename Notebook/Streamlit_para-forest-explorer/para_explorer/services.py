@@ -21,6 +21,8 @@ from . import analysis as A
 from . import cdse
 from . import composites as K
 from . import config as C
+from . import copernicus_imagery as CI
+from . import figures as F
 from . import planet
 from . import store
 from . import theme as T
@@ -60,6 +62,7 @@ def period_stats(folder: str, mtime: float) -> pd.DataFrame:
 @st.cache_data(show_spinner=False)
 def budget(folder: str, mtime: float, a: str, b: str, t_mod: float, t_strong: float) -> pd.DataFrame:
     d = load_data(folder, mtime)
+    t_mod, t_strong, _ = C.validate_thresholds(t_mod, t_strong)
     return A.change_budget(d["ndvis"][a], d["ndvis"][b], d["area_row"], t_mod, t_strong)
 
 
@@ -72,12 +75,15 @@ def histogram(folder: str, mtime: float, a: str, b: str):
 @st.cache_data(show_spinner="Detecting decline patches…")
 def patches(folder: str, mtime: float, a: str, b: str, thr: float, min_ha: float):
     d = load_data(folder, mtime)
+    thr = C.clamp_threshold(thr, C.DEFAULT_T_STRONG)
+    min_ha = max(0.0, float(min_ha))
     return A.detect_patches(d["ndvis"], a, b, thr, min_ha, d["area_row"], d["bounds"])
 
 
 @st.cache_data(show_spinner="Computing trajectories…")
 def trajectory(folder: str, mtime: float, tau: float):
     d = load_data(folder, mtime)
+    tau = C.clamp_threshold(tau)
     nd = d["ndvis"]
     traj = A.trajectory(nd["2021"], nd["2022"], nd["2023"], tau)
     return A.trajectory_table(traj, d["area_row"]), K.downsample(traj.astype("float32"), 400).round().astype("uint8")
@@ -105,6 +111,27 @@ def small_rgb(folder: str, mtime: float, period: str, px: int = 380) -> np.ndarr
     rgba = store.load_rgba(folder, period)
     f = max(1, int(np.ceil(max(rgba.shape[:2]) / px)))
     return rgba[::f, ::f, :3]
+
+
+@st.cache_data(show_spinner=False, max_entries=64)
+def composite_png(folder: str, mtime: float, period: str, kind: str, style: str = "dark", subtitle: str = "", px: int = 900) -> bytes:
+    """Square PNG of one composite ('rgb' | 'ndvi'); identical canvas for every period."""
+    if kind == "rgb":
+        rgba = store.load_rgba(folder, period)
+        f = max(1, int(np.ceil(max(rgba.shape[:2]) / px)))
+        data = rgba[::f, ::f, :3]
+        title = f"{period} · true colour"
+    else:
+        data = K.downsample(load_data(folder, mtime)["ndvis"][period], px)
+        title = f"{period} · NDVI"
+    return F.to_png(F.composite_figure(kind, data, title, subtitle, style))
+
+
+@st.cache_data(show_spinner=False, max_entries=24)
+def change_png(folder: str, mtime: float, a: str, b: str, style: str = "dark", px: int = 900) -> bytes:
+    nd = load_data(folder, mtime)["ndvis"]
+    return F.to_png(F.composite_figure("change", K.downsample(nd[b] - nd[a], px), f"NDVI change {a} → {b}",
+                                       "red = lower vegetation in the later period", style))
 
 
 @st.cache_data(show_spinner="Rendering overlay…", max_entries=24)
@@ -147,5 +174,73 @@ def planet_thumb(_key: str, fp: str, url: str, width: int) -> bytes:
 
 
 @st.cache_data(ttl=3600, show_spinner="Querying Copernicus Data Space…")
-def cdse_items(start: str, end: str, max_cloud: float):
-    return cdse.s2_items(start, end, max_cloud)
+def cdse_items(start: str, end: str, max_cloud: float, geometry_json: str = ""):
+    return cdse.s2_items(start, end, max_cloud, geometry=json.loads(geometry_json) if geometry_json else None)
+
+
+# ------------------------------------------------------------------ Planet vs Copernicus -----
+@st.cache_data(show_spinner=False, max_entries=8)
+def planet_on_grid(folder: str, mtime: float, period: str, size: int = CI.SIZE):
+    """(NDVI float32, true-colour uint8) of one Planet composite on the common ``size`` x ``size`` grid."""
+    from PIL import Image
+    nd = K.downsample(load_data(folder, mtime)["ndvis"][period], size)
+    rgb = store.load_rgba(folder, period)[..., :3]
+    if nd.shape != (size, size):
+        nd = np.array(Image.fromarray(nd).resize((size, size), Image.BILINEAR))
+    if rgb.shape[:2] != (size, size):
+        rgb = np.array(Image.fromarray(rgb).resize((size, size), Image.BILINEAR))
+    return nd, rgb
+
+
+@st.cache_data(show_spinner=False)
+def planet_dates(folder: str, mtime: float, period: str) -> str:
+    """'2021-01-01 → 2021-12-30 (113 scenes)' from the list of downloaded scenes; falls back to the nominal window."""
+    f = Path(folder) / "downloaded_scenes.csv"
+    lo, hi = C.COMPOSITE_WINDOWS[period]
+    if f.exists():
+        df = pd.read_csv(f)
+        if period != "All years":
+            df = df[df["year"].astype(str) == period]
+        if len(df):
+            return f"{df['date'].min()} → {df['date'].max()} ({len(df)} scenes)"
+    return f"{lo} → {hi}"
+
+
+@st.cache_resource(show_spinner=False)
+def copernicus_scene(path: str, mtime: float):
+    return CI.load(Path(path))
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def copernicus_stac(start: str, end: str, max_cloud: float) -> dict:
+    return CI.stac_dates(start, end, max_cloud)
+
+
+# ----------------------------------------------------------------- figures for downloads -----
+@st.cache_data(show_spinner=False, max_entries=8)
+def ndvi_dist_png(folder: str, mtime: float, style: str = "light") -> bytes:
+    return F.to_png(F.ndvi_distribution_figure(load_data(folder, mtime)["ndvis"], style))
+
+
+@st.cache_data(show_spinner=False, max_entries=16)
+def budget_png(folder: str, mtime: float, a: str, b: str, t_mod: float, t_strong: float, style: str = "light") -> bytes:
+    return F.to_png(F.budget_figure(budget(folder, mtime, a, b, t_mod, t_strong), a, b, *C.validate_thresholds(t_mod, t_strong)[:2], style))
+
+
+@st.cache_data(show_spinner=False, max_entries=16)
+def hist_png(folder: str, mtime: float, a: str, b: str, t_mod: float, t_strong: float, style: str = "light") -> bytes:
+    counts, edges = histogram(folder, mtime, a, b)
+    return F.to_png(F.change_histogram_figure(counts, edges, a, b, *C.validate_thresholds(t_mod, t_strong)[:2], style))
+
+
+@st.cache_data(show_spinner=False, max_entries=8)
+def aoi_png(folder: str, mtime: float, a: str, b: str, thr: float, min_ha: float) -> bytes:
+    d = load_data(folder, mtime)
+    _, gj, _ = patches(folder, mtime, a, b, thr, min_ha)
+    rings = []
+    for f in gj["features"]:
+        for poly in f["geometry"]["coordinates"]:
+            rings.append(poly[0])
+    rgba = store.load_rgba(folder, "All years" if "All years" in d["ndvis"] else next(iter(d["ndvis"])))
+    f_ = max(1, int(np.ceil(max(rgba.shape[:2]) / 700)))
+    return F.to_png(F.aoi_map_figure(rgba[::f_, ::f_, :3], d["bounds"], C.AOI_GEOMETRY["coordinates"][0], rings))

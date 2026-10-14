@@ -78,8 +78,10 @@ def stats(api_key: str, item_types: list[str], flt: dict, interval: str = "month
     try:
         r = _session(api_key).post(f"{C.PLANET_DATA_URL}/stats", timeout=TIMEOUT,
                                    json={"interval": interval, "item_types": item_types, "filter": flt})
+    except requests.Timeout as e:
+        raise PlanetError("Planet did not answer in time. Please try again in a moment.") from e
     except requests.RequestException as e:
-        raise PlanetError(f"Could not reach Planet: {e}") from e
+        raise PlanetError("Could not reach Planet. Check your internet connection and try again.") from e
     js = _check(r).json()
     df = pd.DataFrame(js.get("buckets", []))
     if df.empty:
@@ -108,8 +110,10 @@ def search(api_key: str, item_types: list[str], flt: dict, sort: str = "acquired
                 truncated = True
                 break
             r = s.get(nxt, timeout=TIMEOUT)
+    except requests.Timeout as e:
+        raise PlanetError("Planet did not answer in time. Please try again in a moment.") from e
     except requests.RequestException as e:
-        raise PlanetError(f"Could not reach Planet: {e}") from e
+        raise PlanetError("Could not reach Planet. Check your internet connection and try again.") from e
     return feats, truncated
 
 

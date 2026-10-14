@@ -5,7 +5,6 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from para_explorer import compat
-from plotly.subplots import make_subplots
 
 from .. import config as C
 from .. import counts as N
@@ -86,25 +85,19 @@ def _count_setup(ctx) -> None:
 
 
 def _grid(ctx, mode: str) -> None:
+    """2 x 2 grid of identical square images (never stretched); wraps to one column on narrow screens."""
+    kind = "rgb" if mode == "True colour" else "ndvi"
     periods = [p for p in C.COMPOSITES if p in ctx.ndvis]
-    titles = [f"{p} · {ctx.counts[p]['items']} images" if ctx.counts and p in ctx.counts else p for p in periods]
-    fig = make_subplots(rows=2, cols=2, subplot_titles=titles, horizontal_spacing=0.02, vertical_spacing=0.08)
-    for i, p in enumerate(periods):
-        r, c = divmod(i, 2)
-        if mode == "True colour":
-            fig.add_trace(go.Image(z=S.small_rgb(ctx.folder, ctx.mtime, p), hoverinfo="skip"), row=r + 1, col=c + 1)
-        else:
-            nd = S.small_ndvi(ctx.folder, ctx.mtime, p)
-            fig.add_trace(go.Heatmap(z=nd, zmin=T.NDVI_RANGE[0], zmax=T.NDVI_RANGE[1], showscale=(i == 0),
-                                     colorscale=[[k / (len(T.NDVI_RAMP) - 1), col] for k, col in enumerate(T.NDVI_RAMP)],
-                                     colorbar=dict(title="NDVI", thickness=10, len=0.8), hovertemplate="NDVI %{z:.2f}<extra></extra>"),
-                          row=r + 1, col=c + 1)
-    fig.update_xaxes(visible=False)
-    fig.update_yaxes(visible=False, autorange="reversed" if mode != "True colour" else True)
-    fig.update_layout(**T.plotly_layout(760, margin=dict(l=4, r=4, t=40, b=4)))
-    for a in fig.layout.annotations:
-        a.font = dict(color=T.TEXT, size=13)
-    compat.plotly_chart(fig)
+    for row in range(0, len(periods), 2):
+        cols = st.columns(2, gap="medium")
+        for col, p in zip(cols, periods[row:row + 2]):
+            n = ctx.counts.get(p, {}).get("items") if ctx.counts else None
+            sub = f"{n} images downloaded" if n is not None else ""
+            png = S.composite_png(ctx.folder, ctx.mtime, p, kind, "dark", sub)
+            with col:
+                compat.image(png)
+                st.download_button(f"⬇ {p} · {mode.lower()} (PNG)", S.composite_png(ctx.folder, ctx.mtime, p, kind, "light", sub),
+                                   file_name=f"composite_{p.replace(' ', '_')}_{kind}.png", mime="image/png", key=f"dl_grid_{kind}_{p}")
 
 
 def render(ctx) -> None:

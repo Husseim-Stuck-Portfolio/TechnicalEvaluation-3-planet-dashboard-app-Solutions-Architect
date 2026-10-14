@@ -98,6 +98,9 @@ PLANET_ALL_ITEM_TYPES = ("PSScene", "SkySatCollect", "PelicanScene")
 # --------------------------------------------------------------------------- #
 CDSE_STAC_URL = "https://stac.dataspace.copernicus.eu/v1"
 CDSE_S2_COLLECTION = "sentinel-2-l2a"
+# Sentinel Hub on CDSE (needs a free OAuth client from the CDSE dashboard) - used to fetch the Copernicus image of the AOI
+CDSE_TOKEN_URL = "https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token"
+CDSE_PROCESS_URL = "https://sh.dataspace.copernicus.eu/api/v1/process"
 
 # --------------------------------------------------------------------------- #
 # INPE TerraBrasilis (PRODES) - optional external evidence (idea 9)
@@ -138,5 +141,48 @@ CURATED_SCENE_IDS: list[str] = [
 DEFAULT_T_MODERATE = 0.10   # NDVI change counted as "moderate"  (notebook: 0.10)
 DEFAULT_T_STRONG = 0.20     # NDVI change counted as "strong"    (notebook: 0.20)
 DEFAULT_MIN_PATCH_HA = 1.0  # ~100 px at the native 10 m grid (notebook: >=100 px)
-SENS_THRESHOLDS = (0.10, 0.15, 0.20, 0.25, 0.30)
+#: Safe range for every NDVI-change threshold the user can pick (moderate / strong, decrease / increase).
+NDVI_T_MIN = 0.10
+NDVI_T_MAX = 0.20
+NDVI_T_STEP = 0.01
+SENS_THRESHOLDS = (0.10, 0.125, 0.15, 0.175, 0.20)
 SENS_MIN_HA = (0.25, 0.5, 1.0, 2.0)
+
+
+APP_VERSION = "1.1.0"
+
+
+def clamp_threshold(value: float, default: float = DEFAULT_T_MODERATE) -> float:
+    """Force a threshold into [NDVI_T_MIN, NDVI_T_MAX]; NaN / non-numbers fall back to ``default``."""
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return default
+    if v != v:  # NaN
+        return default
+    return round(max(NDVI_T_MIN, min(v, NDVI_T_MAX)), 4)
+
+
+def validate_thresholds(t_moderate, t_strong) -> tuple[float, float, list[str]]:
+    """Return a safe (moderate, strong) pair plus human-readable warnings for anything that was corrected.
+
+    Both values are clamped to the safe range and the strong threshold is kept strictly above the moderate one.
+    """
+    warnings: list[str] = []
+    m, s_ = clamp_threshold(t_moderate, DEFAULT_T_MODERATE), clamp_threshold(t_strong, DEFAULT_T_STRONG)
+    if (m, s_) != (_f(t_moderate), _f(t_strong)):
+        warnings.append(f"NDVI thresholds must stay between {NDVI_T_MIN:.2f} and {NDVI_T_MAX:.2f}; the values were adjusted.")
+    if s_ <= m:
+        if m + NDVI_T_STEP <= NDVI_T_MAX + 1e-9:
+            s_ = round(m + NDVI_T_STEP, 4)
+        else:
+            m = round(s_ - NDVI_T_STEP, 4)
+        warnings.append("The strong threshold must be larger than the moderate one; it was adjusted.")
+    return m, s_, warnings
+
+
+def _f(x):
+    try:
+        return round(float(x), 4)
+    except (TypeError, ValueError):
+        return None

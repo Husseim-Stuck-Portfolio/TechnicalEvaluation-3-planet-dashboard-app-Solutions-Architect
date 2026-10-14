@@ -15,10 +15,10 @@ class CdseError(RuntimeError):
     pass
 
 
-def s2_items(start: str, end: str, max_cloud: float = 100, max_pages: int = 20) -> tuple[pd.DataFrame, bool]:
+def s2_items(start: str, end: str, max_cloud: float = 100, max_pages: int = 20, geometry: dict | None = None) -> tuple[pd.DataFrame, bool]:
     """Sentinel-2 L2A items intersecting the AOI -> DataFrame[id, datetime, cloud] (+ truncated flag)."""
     url = f"{C.CDSE_STAC_URL}/search"
-    body = {"collections": [C.CDSE_S2_COLLECTION], "intersects": C.AOI_GEOMETRY, "limit": 100,
+    body = {"collections": [C.CDSE_S2_COLLECTION], "intersects": geometry or C.AOI_GEOMETRY, "limit": 100,
             "datetime": f"{start}T00:00:00Z/{end}T23:59:59Z"}
     rows, truncated, req = [], False, ("POST", url, body)
     try:

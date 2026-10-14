@@ -25,7 +25,7 @@ def render(ctx) -> None:
         st.info("Press the button to search (read-only metadata request).")
         return
     try:
-        df, trunc = S.cdse_items(str(start), str(end), float(cloud))
+        df, trunc = S.cdse_items(str(start), str(end), float(cloud), ctx.aoi_json)
     except cdse.CdseError as e:
         st.error(str(e))
         return

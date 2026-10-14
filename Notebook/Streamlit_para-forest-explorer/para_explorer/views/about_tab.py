@@ -1,17 +1,11 @@
-"""Tab: narrative for the technical panel - user story, requirement mapping, caveats."""
+"""Tab: method, the three notebooks, limitations and next steps."""
 from __future__ import annotations
 
 import streamlit as st
 
-TEXT = """
-### User story
-*As a regional forest-monitoring analyst in Pará I need to know **where vegetation vigour dropped between 2021 and 2023, how big and how
-persistent those areas are, and how much I can trust the evidence** - before I send a field team or open a PRODES/DETER cross-check.*
+from .. import texts as X
 
-Planet's daily 3 m imagery makes the temporal resolution possible; this app turns annual composites into a **change budget, candidate
-patches and a robustness score**, shows how many images stand behind every composite, and lets the analyst browse the underlying Planet
-scenes (cloud/date filters) without downloading anything.
-
+BRIEF = """
 ### Brief → feature map
 | Requirement | Where in the app |
 |---|---|
@@ -20,22 +14,40 @@ scenes (cloud/date filters) without downloading anything.
 | Analytical view | Histogram, budget bars, sensitivity curves, patch NDVI history, monthly/yearly scene statistics |
 | Information dashboard | KPI strip, composite table (images used), ranked patch table, scene table |
 | Interactivity | Sidebar thresholds → map + KPIs + charts; table row → globe fly-to + inspector; bar click → previews + footprints |
-| Stretch | Planet Data API (Stats + quick-search + thumbnails), CDSE STAC, Sentinel Hub Catalog counts, threshold-sensitivity analysis |
+| Stretch | Planet Data API (Stats + quick-search + thumbnails), CDSE STAC and Sentinel-2 image, Sentinel Hub Catalog counts, sensitivity analysis, PDF report |
 
 ### Architecture
-`precompute` (once, in Jupyter/CLI) → analysis-ready NDVI GeoTIFFs + previews + counts → Streamlit loads, filters and displays.
+`precompute` (once) → analysis-ready NDVI GeoTIFFs + previews + counts → Streamlit loads, filters and displays.
 Large arrays are cached as resources, small results by parameters; maps receive ≤1200 px overlays; Planet counts come from the
-server-side Stats API (no paging through tens of thousands of scenes); thumbnails are fetched per page, in parallel, and kept in memory only.
-
-### Known limitations (read before quoting a number)
-* **NDVI change ≠ deforestation.** A decrease marks a *candidate* disturbance; cause is not identified.
-* Composites are built from different acquisition sets; part of any difference can be atmospheric, phenological or radiometric.
-* Three annual points give a trajectory *classification*, not a trend. Seasonality needs more dates.
-* Image counts are catalog items (tiles/scenes); a day can contain several. Count is not a measure of *clear* observations.
-* The sandbox data are CC-BY-NC and limited to 2021-01-01 → 2023-12-29; the Data API search covers the account's entitlement (2016-2026).
-* Pixel areas use WGS-84 degree lengths per row (error « 1 %).
+server-side Stats API; thumbnails are fetched per page and kept in memory only; credentials come from the environment, Streamlit
+secrets or a password field and are never displayed or logged.
 """
 
 
 def render(ctx) -> None:
-    st.markdown(TEXT)
+    st.markdown("### User story")
+    st.markdown("*A forest-monitoring analyst wants to identify areas in Pará that may have experienced vegetation loss between 2021 and 2023. "
+                "The app compares satellite imagery, calculates NDVI change, highlights possible change patches, and provides statistics that "
+                "help prioritise areas for further investigation.*")
+    st.markdown("**Why it matters.** Forest loss can affect biodiversity, carbon storage, water cycles, local communities and climate goals. "
+                "Frequent satellite observations help organisations detect and investigate changes earlier. Satellite analysis does not replace "
+                "field verification or official deforestation assessments - this is a decision-support tool for prioritising locations and communicating evidence.")
+    st.markdown("### How NDVI works")
+    st.markdown(X.NDVI_EXPLANATION)
+    st.code(X.NDVI_FORMULA)
+
+    st.markdown("### The three notebooks")
+    cols = st.columns(3, gap="medium")
+    for col, (title, fname, bullets, blurb) in zip(cols, X.NOTEBOOKS):
+        with col:
+            st.markdown(f"**{title}**  \n`{fname}`")
+            st.markdown("\n".join(f"- {b}" for b in bullets))
+            st.caption(blurb)
+
+    st.markdown(BRIEF)
+    st.markdown("### Known limitations (read before quoting a number)")
+    st.warning(X.SEASONAL_LIMITATION)
+    st.markdown("\n".join(f"* {t}" for t in X.LIMITATIONS if t != X.SEASONAL_LIMITATION))
+    st.markdown("### Future scope / next steps")
+    st.markdown("\n".join(f"* {t}" for t in X.FUTURE_SCOPE))
+    st.caption(X.FUTURE_NOTE)

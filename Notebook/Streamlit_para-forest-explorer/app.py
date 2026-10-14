@@ -8,6 +8,7 @@ Data: read from the notebooks' folders (../composites, ../planet_downloads, ../a
 from __future__ import annotations
 
 import sys
+import json
 from datetime import date
 from pathlib import Path
 from types import SimpleNamespace
@@ -19,11 +20,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from para_explorer import config as C  # noqa: E402
 from para_explorer import counts as N  # noqa: E402
-from para_explorer import globe, store  # noqa: E402
+from para_explorer import aoi as AOI  # noqa: E402
+from para_explorer import credentials, globe, store  # noqa: E402
 from para_explorer import services as S  # noqa: E402
 from para_explorer import theme as T  # noqa: E402
-from para_explorer.views import (about_tab, change_tab, composites_tab, copernicus_tab, overview,  # noqa: E402
-                                 patches_tab, planet_tab)
+from para_explorer.views import (about_tab, change_tab, compare, composites_tab, copernicus_tab, downloads, intro,  # noqa: E402
+                                 overview, patches_tab, planet_tab)
 
 st.set_page_config(page_title="Pará Forest Change Explorer", page_icon="🛰️", layout="wide", initial_sidebar_state="expanded")
 st.markdown(T.CSS, unsafe_allow_html=True)
@@ -42,8 +44,8 @@ def _ensure_data(folder: Path) -> None:
                            catalog_csv=C.CATALOG_CSV, log=lambda *_: None)
         if store.status(folder)["ok"]:
             return
-    st.error(f"No analysis-ready data in **{folder}** ({store.status(folder)['reason']}). Expected the composites of "
-             f"notebook 3 in `{raw}`; run `python -m para_explorer.precompute --composites <folder>` or set `PARA_COMPOSITES_DIR`.")
+    st.error("The analysis-ready data could not be prepared. Place the composites of notebook 3 (`composite_<year>.tif`) in the "
+             "project's `composites/` folder (or set `PARA_COMPOSITES_DIR`) and run `python -m para_explorer.precompute`.")
     st.stop()
 
 
@@ -52,7 +54,7 @@ def sidebar() -> SimpleNamespace:
     x = SimpleNamespace()
     with st.sidebar:
         st.markdown("### 🛰️ Explorer")
-        x.folder = str(Path(st.text_input("Analysis-ready data folder", value=str(C.PROCESSED_DIR), help="Output of para_explorer.precompute")).expanduser())
+        x.folder = str(C.PROCESSED_DIR)            # implementation detail - never shown to the user
         _ensure_data(Path(x.folder))
         x.mtime = S.stamp(x.folder)
         d = S.load_data(x.folder, x.mtime)
@@ -70,22 +72,42 @@ def sidebar() -> SimpleNamespace:
         if x.a >= x.b:
             st.warning("Pick a 'To' year later than 'From'.")
             st.stop()
-        x.t_moderate, x.t_strong = st.slider("NDVI change thresholds (moderate, strong)", 0.02, 0.60, (C.DEFAULT_T_MODERATE, C.DEFAULT_T_STRONG), 0.01,
-                                             help="|ΔNDVI| classes for the change budget; the strong threshold also defines decline patches.")
-        x.min_ha = st.slider("Minimum patch size (ha)", 0.25, 20.0, C.DEFAULT_MIN_PATCH_HA, 0.25)
+        tm, ts = st.slider(f"NDVI change thresholds (moderate, strong) · {C.NDVI_T_MIN:.2f}-{C.NDVI_T_MAX:.2f}",
+                           C.NDVI_T_MIN, C.NDVI_T_MAX, (C.DEFAULT_T_MODERATE, C.DEFAULT_T_STRONG), C.NDVI_T_STEP, key="ndvi_thresholds",
+                           help="|ΔNDVI| classes for decreases and increases alike; the strong threshold also defines decline patches. "
+                                "The range is limited to values the analysis is validated for.")
+        x.t_moderate, x.t_strong, warns = C.validate_thresholds(tm, ts)
+        for w in warns:
+            st.warning(w)
+        x.min_ha = st.slider("Minimum patch size (ha)", 0.25, 50.0, C.DEFAULT_MIN_PATCH_HA, 0.25, key="min_patch_ha",
+                             help="Larger values keep only bigger patches; if none qualify the app simply shows an empty result.")
         x.min_rob = st.slider("Minimum patch robustness", 0.0, 1.0, 0.0, 0.2, help="Share of thresholds 0.10-0.30 at which the patch stays flagged.")
         x.hide_recovering = st.checkbox("Hide patches mostly recovering in 2022→23 (>50 %)", value=False)
 
         st.markdown("##### Map")
         x.basemap = st.selectbox("Basemap", list(globe.BASEMAPS))
-        x.opacity = st.slider("Overlay opacity", 0, 100, 85)
+        x.opacity = st.slider("Overlay opacity (%)", 0, 100, 85, 5, key="overlay_opacity", help="Applies to the selected map layer on the globe.")
         x.intro_wanted = st.toggle("Start with a rotating globe", value=True)
         if st.button("Replay globe intro"):
             st.session_state["intro_done"] = False
 
         st.markdown("##### Planet Data API")
-        x.planet_key = st.text_input("Planet API key", type="password", key="planet_key", placeholder="PL…",
-                                     help="Used only for this session to query api.planet.com. Never stored or logged.")
+        env_key = credentials.get_secret("PLANET_API_KEY")
+        typed = st.text_input("Planet API key", type="password", key="planet_key", placeholder="PL… (or set PLANET_API_KEY)",
+                              help="Used only for this session to query api.planet.com. Never displayed, stored or logged. "
+                                   "For deployments set PLANET_API_KEY as environment variable or Streamlit secret.")
+        x.planet_key = typed or env_key
+        if env_key and not typed:
+            st.caption("🔒 Using the key from the server configuration.")
+        up_aoi = st.file_uploader("Area of interest (GeoJSON, optional)", type=["geojson", "json"],
+                                  help="Default: the Pará study area. A smaller Polygon/MultiPolygon in lon/lat is used for Planet and Copernicus searches.")
+        x.aoi_geometry, x.aoi_label = None, C.AOI_NAME
+        if up_aoi is not None:
+            geom, err = AOI.parse_geojson(up_aoi.getvalue())
+            if err:
+                st.error(err)
+            else:
+                x.aoi_geometry, x.aoi_label = geom, "uploaded area"
         x.cloud = st.slider("Cloud cover (%)", 0, 100, (0, 30), 5)
         dr = st.date_input("Acquisition dates", value=(date(2021, 1, 1), date(2023, 12, 31)), min_value=date(2016, 1, 1), max_value=date.today())
         x.p_start_date, x.p_end_date = (dr[0], dr[1]) if isinstance(dr, (tuple, list)) and len(dr) == 2 else (date(2021, 1, 1), date(2023, 12, 31))
@@ -110,9 +132,10 @@ def sidebar() -> SimpleNamespace:
 def main() -> None:
     ctx = sidebar()
     d = S.load_data(ctx.folder, ctx.mtime)
-    ctx.ndvis, ctx.bounds = d["ndvis"], d["bounds"]
+    ctx.ndvis, ctx.bounds, ctx.shape = d["ndvis"], d["bounds"], d["shape"]
     ctx.period_stats = S.period_stats(ctx.folder, ctx.mtime)
 
+    ctx.aoi_json = json.dumps(ctx.aoi_geometry) if ctx.aoi_geometry else ""
     ctx.counts_path = Path(ctx.folder) / "composite_counts.json"
     rec = N.load(ctx.counts_path)
     if rec is None and C.DOWNLOADS_DIR.is_dir() and Path(ctx.folder).resolve() == C.PROCESSED_DIR.resolve():
@@ -138,6 +161,9 @@ def main() -> None:
 
     ctx.intro = ctx.intro_wanted and not st.session_state.get("intro_done", False)
     overview.header(ctx)
+    intro.user_story()
+    intro.basics()
+    st.write("")
     overview.kpis(ctx)
     st.write("")
     overview.globe_and_panel(ctx, pl)
@@ -158,6 +184,11 @@ def main() -> None:
         copernicus_tab.render(ctx)
     with tabs[5]:
         about_tab.render(ctx)
+
+    st.write("")
+    downloads.render(ctx)
+    st.write("")
+    compare.render(ctx)
 
 
 main()

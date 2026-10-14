@@ -30,7 +30,12 @@ def render(ctx) -> None:
                f"{s.get('total_candidates', 0):,} candidates → {s.get('kept', 0):,} ≥ {ctx.min_ha} ha → {len(df):,} after the sidebar filters. "
                "Select a row: the globe flies to the patch and the inspector shows its history.")
     if df.empty:
-        st.info("No patches at these settings. Lower the threshold or the minimum patch size in the sidebar.")
+        if s.get("total_candidates", 0) == 0:
+            st.info("No pixels exceed the selected NDVI-decrease threshold for these years. Try a lower threshold.")
+        elif s.get("kept", 0) == 0:
+            st.info("No vegetation-change patches meet the selected minimum size.\n\nTry a smaller patch-size threshold.")
+        else:
+            st.info("No patches pass the robustness / recovery filters in the sidebar. Relax them to see the candidates.")
         return
     cols = ["patch_id", "area_ha", "mean_change", "max_decline", f"ndvi_{ctx.a}", f"ndvi_{ctx.b}",
             "declining_21_22_pct", "recovering_22_23_pct", "compactness", "robustness", "lat", "lon"]

@@ -143,7 +143,7 @@ def from_download_folder(folder: Path, coverage: bool = True, min_valid: float =
             w.writerows(rows)
     available = catalog_counts(catalog_csv) if catalog_csv and Path(catalog_csv).exists() else None
     rec = _record(_summarise(per_year, usable if coverage else None, available),
-                  f"download folder ({folder.name}/, {len(files)} GeoTIFFs)", min_valid=min_valid)
+                  f"downloaded scenes ({len(files)} GeoTIFFs)", min_valid=min_valid)
     return rec
 
 

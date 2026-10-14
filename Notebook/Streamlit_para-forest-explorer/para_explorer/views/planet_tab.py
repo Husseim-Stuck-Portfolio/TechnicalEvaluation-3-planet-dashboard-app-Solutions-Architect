@@ -36,11 +36,11 @@ def compute(ctx) -> SimpleNamespace:
     if key:
         fp = S.fingerprint(key)
         ids = C.CURATED_SCENE_IDS if ctx.curated_only else None
-        flt = planet.build_filter(start, end, ctx.cloud[0], ctx.cloud[1], ids)
+        flt = planet.build_filter(start, end, ctx.cloud[0], ctx.cloud[1], ids, ctx.aoi_geometry)
         fs, fe = start, end
         if s.focus_year != "All":
             fs, fe = max(start, f"{s.focus_year}-01-01"), min(end, f"{s.focus_year}-12-31")
-        flt_scene = planet.build_filter(fs, fe, ctx.cloud[0], ctx.cloud[1], ids)
+        flt_scene = planet.build_filter(fs, fe, ctx.cloud[0], ctx.cloud[1], ids, ctx.aoi_geometry)
         try:
             s.monthly = S.planet_stats(key, fp, tuple(ctx.item_types), json.dumps(flt), "month")
             feats, s.truncated = S.planet_search(key, fp, tuple(ctx.item_types), json.dumps(flt_scene), "acquired desc", ctx.max_pages)

@@ -16,6 +16,9 @@ from scipy import ndimage
 
 from . import theme as T
 
+PATCH_COLUMNS = ["patch_id", "area_ha", "pixels", "mean_change", "max_decline", "ndvi_2021", "ndvi_2022", "ndvi_2023",
+                 "compactness", "lon", "lat", "robustness", "declining_21_22_pct", "recovering_22_23_pct", "bbox"]
+EMPTY_COLLECTION = {"type": "FeatureCollection", "features": []}
 CATEGORIES = ["Strong decrease", "Moderate decrease", "Little change", "Moderate increase", "Strong increase"]
 _STRUCT8 = np.ones((3, 3), dtype=bool)
 
@@ -136,10 +139,13 @@ def detect_patches(ndvis: dict[str, np.ndarray], from_year: str, to_year: str, t
     mask = decline_mask(change, thr)
     labels, n = ndimage.label(mask, structure=_STRUCT8)
     summary = {"total_candidates": int(n), "min_px": min_px, "declined_ha": area_ha(mask, area_row)}
+    summary.update(kept=0, kept_ha=0.0)
     if n == 0:
-        return pd.DataFrame(), {"type": "FeatureCollection", "features": []}, summary
+        return pd.DataFrame(columns=PATCH_COLUMNS), {"type": "FeatureCollection", "features": []}, summary
     sizes = np.bincount(labels.ravel())[1:]
     ids = np.flatnonzero(sizes >= min_px) + 1
+    if len(ids) == 0:          # nothing reaches the minimum size: an empty result, not an error
+        return pd.DataFrame(columns=PATCH_COLUMNS), {"type": "FeatureCollection", "features": []}, summary
     ids = ids[np.argsort(-sizes[ids - 1])][:max_patches]
     summary["kept"] = int(len(ids))
     summary["kept_ha"] = float(sum(sizes[i - 1] for i in ids) * ha_px)
@@ -189,6 +195,8 @@ def detect_patches(ndvis: dict[str, np.ndarray], from_year: str, to_year: str, t
     props = df.set_index("patch_id")
     feats = []
     for pid, polys in by_id.items():
+        if pid not in props.index:
+            continue
         p = props.loc[pid]
         feats.append({
             "type": "Feature",

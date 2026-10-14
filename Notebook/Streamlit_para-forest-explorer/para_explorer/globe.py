@@ -57,7 +57,7 @@ _TEMPLATE = r"""<!doctype html><html><head><meta charset="utf-8">
   <button id="bSpin">&#8635; Rotate globe</button>
   <button id="bFocus">&#9678; Focus area of interest</button>
   <button id="bTilt">&#9650; Toggle 3-D tilt</button>
-  <label>Overlay opacity<input id="op" type="range" min="0" max="100" value="__OPACITY__"></label>
+  <div id="opv" style="color:#9fb0c6;font-size:11px;padding:2px 4px">Overlay opacity: __OPACITY__ % (sidebar)</div>
 </div>
 <div class="hud" id="coord">lon / lat</div>
 <div class="hud" id="legend"></div>
@@ -134,7 +134,6 @@ map.on('load',()=>{
   }
   bind('patches-fill',p=>`<b>Patch #${p.patch_id}</b><br>${p.area_ha} ha &middot; mean &Delta;NDVI ${p.mean_change}<br>robustness ${p.robustness}`);
   bind('scenes-fill',p=>`<b>${p.id}</b><br>${p.acquired||''}<br>cloud ${p.cloud==null||p.cloud==='null'?'n/a':p.cloud+' %'}`);
-  document.getElementById('op').oninput=e=>{ if(map.getLayer('overlay')) map.setPaintProperty('overlay','raster-opacity',e.target.value/100); };
 
   if(CFG.focus && !CFG.autorotate){ map.flyTo({center:CFG.focus.center,zoom:CFG.focus.zoom,duration:2200,essential:true}); }
   if(CFG.autorotate){ spinning=true; spin();
