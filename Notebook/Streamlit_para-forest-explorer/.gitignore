@@ -1,0 +1,5 @@
+__pycache__/
+.venv/
+figures/
+data/processed/
+data/demo/raw/
