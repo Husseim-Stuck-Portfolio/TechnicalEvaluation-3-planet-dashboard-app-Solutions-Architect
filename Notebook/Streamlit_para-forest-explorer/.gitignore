@@ -3,3 +3,7 @@ __pycache__/
 figures/
 data/processed/
 data/demo/raw/
+
+# credentials never go into the repository
+.streamlit/secrets.toml
+.env
