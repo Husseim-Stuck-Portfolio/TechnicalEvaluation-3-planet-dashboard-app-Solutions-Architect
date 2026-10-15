@@ -49,23 +49,31 @@ def _ensure_data(folder: Path) -> None:
     st.stop()
 
 
+def _side_section(title: str, desc: str) -> None:
+    """Sidebar section title with a one-line description of what the controls below change."""
+    st.markdown(f'<div class="pe-side-sec">{title}</div><div class="pe-side-desc">{desc}</div>', unsafe_allow_html=True)
+
+
 # ---------------------------------------------------------------------------------- sidebar --
 def sidebar() -> SimpleNamespace:
     x = SimpleNamespace()
     with st.sidebar:
-        st.markdown("### 🛰️ Explorer")
+        st.markdown('<div class="pe-side-brand"><div class="pe-logo"></div><div class="pe-side-title">Pará Forest Change Explorer</div></div>'
+                    '<div class="pe-side-tag">Vegetation change from satellite imagery · 2021-2023</div>', unsafe_allow_html=True)
         x.folder = str(C.PROCESSED_DIR)            # implementation detail - never shown to the user
         _ensure_data(Path(x.folder))
         x.mtime = S.stamp(x.folder)
         d = S.load_data(x.folder, x.mtime)
         years = [y for y in C.YEARS if y in d["ndvis"]]
 
-        st.markdown("##### Composite & layer")
+        _side_section("🗺️ Map layer", "Choose <b>which period</b> and <b>which data</b> is painted on the globe. "
+                      "Patches are the outlined areas of strong decline.")
         x.period = st.radio("Composite", [p for p in C.COMPOSITES if p in d["ndvis"]], horizontal=True)
         x.layer = st.selectbox("Map layer", ["True colour", "NDVI", "NDVI change", "Trajectory", "None"])
         x.show_patches = st.toggle("Show decline patches", value=True)
 
-        st.markdown("##### Change analysis")
+        _side_section("📉 Change analysis", "Pick the two years to compare and how strict “decline” is. "
+                      "Updates the <b>change map, KPIs, charts and patches</b>.")
         c1, c2 = st.columns(2)
         x.a = c1.selectbox("From", years, index=0)
         x.b = c2.selectbox("To", years, index=len(years) - 1)
@@ -79,19 +87,22 @@ def sidebar() -> SimpleNamespace:
         x.t_moderate, x.t_strong, warns = C.validate_thresholds(tm, ts)
         for w in warns:
             st.warning(w)
+        _side_section("🔍 Decline patches", "Filter which patches are <b>outlined on the map</b> and listed in the Decline patches tab.")
         x.min_ha = st.slider("Minimum patch size (ha)", 0.25, 50.0, C.DEFAULT_MIN_PATCH_HA, 0.25, key="min_patch_ha",
                              help="Larger values keep only bigger patches; if none qualify the app simply shows an empty result.")
         x.min_rob = st.slider("Minimum patch robustness", 0.0, 1.0, 0.0, 0.2, help="Share of thresholds 0.10-0.30 at which the patch stays flagged.")
         x.hide_recovering = st.checkbox("Hide patches mostly recovering in 2022→23 (>50 %)", value=False)
 
-        st.markdown("##### Map")
+        _side_section("🎛️ Map display", "Background map, layer transparency and the opening animation. "
+                      "Does <b>not</b> change any numbers.")
         x.basemap = st.selectbox("Basemap", list(globe.BASEMAPS))
         x.opacity = st.slider("Overlay opacity (%)", 0, 100, 85, 5, key="overlay_opacity", help="Applies to the selected map layer on the globe.")
         x.intro_wanted = st.toggle("Start with a rotating globe", value=True)
         if st.button("Replay globe intro"):
             st.session_state["intro_done"] = False
 
-        st.markdown("##### Planet Data API")
+        _side_section("🛰️ Planet imagery search", "Searches Planet’s catalogue for the Planet imagery tab; matching "
+                      "<b>scene footprints appear on the map</b>. Needs your API key.")
         env_key = credentials.get_secret("PLANET_API_KEY")
         typed = st.text_input("Planet API key", type="password", key="planet_key", placeholder="PL… (or set PLANET_API_KEY)",
                               help="Used only for this session to query api.planet.com. Never displayed, stored or logged. "

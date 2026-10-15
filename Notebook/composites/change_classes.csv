@@ -1,0 +1,6 @@
+class,pixels,% of valid,area_ha
+Strong decrease (≤ -0.20),44290,0.77,436.5
+Moderate decrease (-0.20 to -0.10),263666,4.58,2598.5
+Little change (|Δ| < 0.10),5209584,90.45,51341.2
+Moderate increase (0.10 to 0.20),223035,3.87,2198.0
+Strong increase (≥ 0.20),18865,0.33,185.9

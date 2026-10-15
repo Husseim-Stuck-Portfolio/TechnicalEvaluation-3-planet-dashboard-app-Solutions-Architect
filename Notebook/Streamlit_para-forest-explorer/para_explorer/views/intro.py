@@ -46,7 +46,7 @@ def user_story() -> None:
 
 
 def basics() -> None:
-    with st.expander("📘 New to satellite data? Start here - what NDVI is and what you can learn", expanded=True):
+    with st.expander("📘 New to satellite data? Start here - what NDVI is and what you can learn", expanded=False):
         c1, c2 = st.columns([1.35, 1], gap="large")
         with c1:
             st.markdown("##### Key terms in plain language")

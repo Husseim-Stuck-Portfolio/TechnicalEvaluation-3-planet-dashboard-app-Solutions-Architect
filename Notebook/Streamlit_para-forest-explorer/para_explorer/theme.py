@@ -67,6 +67,14 @@ CSS = f"""
   .pe-pill {{ margin-left:auto; border:1px solid {BORDER}; background:{SURFACE}; color:{TEXT_2};
              padding:4px 10px; border-radius:999px; font-size:.75rem; }}
   .pe-pill b {{ color:{ACCENT}; }}
+  .pe-side-brand {{ display:flex; align-items:center; gap:12px; padding:2px 0 4px 0; }}
+  .pe-side-brand .pe-logo {{ flex:none; }}
+  .pe-side-title {{ font-size:1.55rem; font-weight:700; color:{TEXT}; line-height:1.12; letter-spacing:-0.02em; }}
+  .pe-side-tag {{ color:{MUTED}; font-size:.8rem; margin:4px 0 6px 0; }}
+  .pe-side-sec {{ font-size:1.2rem; font-weight:650; color:{TEXT}; margin:22px 0 2px 0; padding-top:14px;
+                 border-top:1px solid {BORDER}; letter-spacing:-0.01em; }}
+  .pe-side-desc {{ color:{TEXT_2}; font-size:.82rem; line-height:1.35; margin:0 0 10px 0; }}
+  .pe-side-desc b {{ color:{ACCENT}; font-weight:600; }}
   .pe-kpi {{ background:{SURFACE}; border:1px solid {BORDER}; border-radius:12px; padding:12px 14px; height:100%; }}
   .pe-kpi .l {{ color:{MUTED}; font-size:.72rem; text-transform:uppercase; letter-spacing:.06em; }}
   .pe-kpi .v {{ color:{TEXT}; font-size:1.55rem; font-weight:650; margin-top:2px; }}
