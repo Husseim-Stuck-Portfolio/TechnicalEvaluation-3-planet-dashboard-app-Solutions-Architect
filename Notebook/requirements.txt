@@ -1,0 +1,19 @@
+# Python 3.10 or newer.   Install:  python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
+
+# --- notebooks 1-3 and the app ---
+numpy>=1.26
+pandas>=2.1
+requests>=2.31
+rasterio>=1.3
+scipy>=1.11
+matplotlib>=3.8
+
+# --- notebooks: run them in Jupyter (notebook 1 also imports IPython.display) ---
+ipython>=8.0
+ipykernel>=6.29
+jupyterlab>=4.0
+
+# --- Streamlit app (Streamlit_para-forest-explorer/) ---
+streamlit>=1.40
+plotly>=5.24
+pillow>=10.0
